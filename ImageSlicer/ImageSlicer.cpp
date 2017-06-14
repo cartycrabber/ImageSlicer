@@ -12,9 +12,13 @@
 using namespace cv;
 
 Point p1;
-Point p2;
-bool newRect;
+Rect* unconfirmedRect;
+Point mouse;
 bool drawing;
+
+const Scalar UNCONFIRMED_COLOR = Scalar(255, 0, 0);
+const Scalar CONFIRMED_COLOR = Scalar(0, 255, 0);
+const Scalar GUIDE_COLOR = Scalar(0, 0, 255);
 
 void printUsage() {
 	std::cout << "Usage: ImageSlicer <image path> <export filename prefix> <export file type>" << std::endl;
@@ -22,7 +26,8 @@ void printUsage() {
 
 void printControls() {
 	std::cout << "Controls:" << std::endl << "Click and drag to select a region to slice" << std::endl << "c - confirm your selection"
-		<< std::endl << "d - delete your selection" << std::endl << "e - export all selections" << std::endl;
+		<< std::endl << "d - delete your selection" << std::endl << "e - export all selections" << std::endl
+		<< "g - toggle guide lines" << std::endl << "r - reset image" << std::endl << "q - quit" << std::endl;
 }
 
 void CallBackFunc(int event, int x, int y, int flags, void* userdata) {
@@ -37,10 +42,16 @@ void CallBackFunc(int event, int x, int y, int flags, void* userdata) {
 #ifdef _DEBUG
 		std::cout << "Left button up" << std::endl;
 #endif
-		p2 = Point(x, y);
-		newRect = true;
+		unconfirmedRect = new Rect(p1, Point(x, y));
 		drawing = false;
 	}
+	else if (event == EVENT_MOUSEMOVE) {
+		mouse = Point(x, y);
+		if (drawing) {
+			unconfirmedRect = new Rect(p1, mouse);
+		}
+	}
+
 }
 
 int main(int argc, char* argv[])
@@ -79,62 +90,91 @@ int main(int argc, char* argv[])
 
 	std::vector<Rect> rects;
 	bool run = true;
-	bool confirmed = true;
+	bool guides = false;
 
 	printControls();
 
 	while (run) {
-		if (newRect) {
-			rectangle(tempImage, p1, p2, Scalar(255, 0, 0));
+		/***==-==-== Render Code ==-==-==***/
+		//Reset frame to base image
+		tempImage = baseImage.clone();
+		
+		//Render guides if necessary
+		if (guides) {
 #ifdef _DEBUG
-			std::cout << "Drew rectangle" << std::endl;
+			std::cout << "Drawing Guides" << std::endl;
 #endif
-			newRect = false;
-			confirmed = false;
-			imshow("Image Slicer", tempImage);
+			line(tempImage, Point(mouse.x, 0), Point(mouse.x, tempImage.cols), GUIDE_COLOR);
+			line(tempImage, Point(0, mouse.y), Point(tempImage.rows, mouse.y), GUIDE_COLOR);
 		}
-		else if (!confirmed && drawing) {
-			tempImage = baseImage.clone();
-			imshow("Image Slicer", baseImage);
+
+		//Render an unconfirmed rectangle if necessary
+		if (unconfirmedRect != nullptr) {
+#ifdef _DEBUG
+			std::cout << "Drawing unconfirmed rectangle" << std::endl;
+#endif
+			rectangle(tempImage, *unconfirmedRect, UNCONFIRMED_COLOR);
 		}
+
+		imshow("Image Slicer", tempImage);
+
+		/***==-==-== Input Code ==-==-==***/
+		//Get input
 		int key = waitKey(1);
-		if (key == -1) {
+		//Handle Input
+		if (key == -1) {//No input
 			continue;
 		}
-		else if (!confirmed) {
-			if (key == 'c') {//confirm rect
+		else if ((key == 'c') && !drawing && (unconfirmedRect != nullptr)) {//confirm rect
 #ifdef _DEBUG
-				std::cout << "Confirmed rectangle" << std::endl;
+			std::cout << "Confirming rectangle" << std::endl;
 #endif
-				confirmed = true;
-				rectangle(baseImage, p1, p2, Scalar(0, 255, 0));
-				tempImage = baseImage.clone();
-				imshow("Image Slicer", baseImage);
-				//Add 1 to tl x and y to remove the green part
-				Rect r = Rect(p1, p2);
-				r.x += 1;
-				r.y += 1;
-				r.width -= 1;
-				r.height -= 1;
-				rects.push_back(r);
-			}
-			else if (key == 'd') {//delete rect
-#ifdef _DEBUG
-				std::cout << "Deleting rectangle" << std::endl;
-#endif
-				tempImage = baseImage.clone();
-				imshow("Image Slicer", baseImage);
-				confirmed = true;
-			}
+			rectangle(baseImage, *unconfirmedRect, CONFIRMED_COLOR);
+			//trim the green borders
+			unconfirmedRect->x += 1;
+			unconfirmedRect->y += 1;
+			unconfirmedRect->width -= 2;
+			unconfirmedRect->height -= 2;
+			rects.push_back(*unconfirmedRect);
+
+			unconfirmedRect = nullptr;
 		}
-		else if (key == 'e') {//export all selections
-			for(int i = 0; i < rects.size(); i++)
+		else if (key == 'd' && !drawing && (unconfirmedRect != nullptr)) {//delete rect
+#ifdef _DEBUG
+			std::cout << "Deleting rectangle" << std::endl;
+#endif
+			unconfirmedRect = nullptr;
+		}
+		else if (key == 'e' && !drawing) {//export all selections
+			for (int i = 0; i < rects.size(); i++)
 			{
 				imwrite(exportPrefix + "_" + std::to_string(i) + "." + exportType, baseImage(rects[i]));
 			}
-			std::cout << "Finished exporting all images" << std::endl;
+			std::cout << "Finished exporting " << rects.size() << " images" << std::endl;
+		}
+		else if (key == 'q') {//quit
+#ifdef _DEBUG
+			std::cout << "Quitting" << std::endl;
+#endif
+			run = false;
+		}
+		else if (key == 'r') {//reset image
+#ifdef _DEBUG
+			std::cout << "Resetting Image" << std::endl;
+#endif
+			baseImage = imread(imagePath);
+			unconfirmedRect = nullptr;
+			rects.clear();
+		}
+		else if (key == 'g') {//guides
+#ifdef _DEBUG
+			std::cout << "Toggling Guides" << std::endl;
+#endif
+			guides = !guides;
 		}
 	}
+
+	destroyAllWindows();
 
     return 0;
 }
