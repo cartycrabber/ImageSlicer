@@ -15,14 +15,17 @@ using namespace cv;
 Point p1;
 Rect* unconfirmedRect;
 Point mouse;
+Point mouseLast;
 bool drawing;
+bool rClick = false;
+bool rMove = false;
 
 const Scalar UNCONFIRMED_COLOR = Scalar(255, 0, 0);
 const Scalar CONFIRMED_COLOR = Scalar(0, 255, 0);
 const Scalar GUIDE_COLOR = Scalar(0, 0, 255);
 
 const float WINDOW_MARGIN_PERCENT = 0.05;
-const int SCROLL_STEP = 50;
+const int SCROLL_STEP = 1;
 
 void printUsage() {
 	std::cout << "Usage: ImageSlicer <image path> <export filename prefix> <export file type> <starting number>" << std::endl;
@@ -49,13 +52,32 @@ void CallBackFunc(int event, int x, int y, int flags, void* userdata) {
 		unconfirmedRect = new Rect(p1, Point(x, y));
 		drawing = false;
 	}
+	else if (event == EVENT_RBUTTONDOWN) {
+#ifdef _DEBUG
+		std::cout << "Right button down" << std::endl;
+#endif
+		rClick = true;
+	}
+	else if (event == EVENT_RBUTTONUP) {
+#ifdef _DEBUG
+		std::cout << "Right button up" << std::endl;
+#endif
+		rClick = false;
+		rMove = false;
+	}
 	else if (event == EVENT_MOUSEMOVE) {
+		if (rClick) {
+			if (!rMove) {
+				mouseLast = mouse;
+				rMove = true;
+			}
+
+		}
 		mouse = Point(x, y);
 		if (drawing) {
 			unconfirmedRect = new Rect(p1, mouse);
 		}
 	}
-
 }
 
 // Get the horizontal and vertical screen sizes in pixel
@@ -87,8 +109,8 @@ int main(int argc, char* argv[])
 
 	Size screenSize = GetDesktopResolution();
 	//Trim some margin space
-	screenSize.width *= 1.0 - WINDOW_MARGIN_PERCENT;
-	screenSize.height *= 1.0 - WINDOW_MARGIN_PERCENT;
+	screenSize.width *= 1 - WINDOW_MARGIN_PERCENT;
+	screenSize.height *= 1 - WINDOW_MARGIN_PERCENT;
 	Rect imageSection;
 
 #ifdef _DEBUG
@@ -156,13 +178,14 @@ int main(int argc, char* argv[])
 		//Get input
 		int key = waitKey(1);
 		//Handle Input
-		if (key == -1) {//No input
-			continue;
-		}
-		else if ((key == 'c') && !drawing && (unconfirmedRect != nullptr)) {//confirm rect
+		if ((key == 'c') && !drawing && (unconfirmedRect != nullptr)) {//confirm rect
 #ifdef _DEBUG
 			std::cout << "Confirming rectangle" << std::endl;
 #endif
+			//Add the viewing offset to the rectangle
+			unconfirmedRect->x += imageSection.x;
+			unconfirmedRect->y += imageSection.y;
+
 			rectangle(baseImage, *unconfirmedRect, CONFIRMED_COLOR);
 			//trim the green borders
 			unconfirmedRect->x += 1;
@@ -236,6 +259,26 @@ int main(int argc, char* argv[])
 #endif
 			if ((imageSection.y + imageSection.height + SCROLL_STEP) <= baseImage.rows) {
 				imageSection.y += SCROLL_STEP;
+			}
+		}
+		if (rClick && rMove) {
+#ifdef _DEBUG
+			std::cout << "Right click and drag" << std::endl;
+#endif
+			int deltaX = mouse.x - mouseLast.x;
+			int deltaY = mouse.y - mouseLast.y;
+#ifdef _DEBUG
+			std::cout << "Mouse Delta: " << mouse - mouseLast << std::endl;
+#endif
+			rMove = false;
+			if (((imageSection.x + imageSection.width - deltaX) <= baseImage.cols)
+				&& (imageSection.x - deltaX) >= 0) {
+				imageSection.x -= deltaX;
+			}
+
+			if (((imageSection.y + imageSection.height - deltaY) <= baseImage.rows)
+				&& (imageSection.y - deltaY) >= 0) {
+				imageSection.y -= deltaY;
 			}
 		}
 	}
