@@ -21,7 +21,7 @@ const Scalar CONFIRMED_COLOR = Scalar(0, 255, 0);
 const Scalar GUIDE_COLOR = Scalar(0, 0, 255);
 
 void printUsage() {
-	std::cout << "Usage: ImageSlicer <image path> <export filename prefix> <export file type>" << std::endl;
+	std::cout << "Usage: ImageSlicer <image path> <export filename prefix> <export file type> <starting number>" << std::endl;
 }
 
 void printControls() {
@@ -56,7 +56,7 @@ void CallBackFunc(int event, int x, int y, int flags, void* userdata) {
 
 int main(int argc, char* argv[])
 {
-	if (argc != 4) {
+	if (argc != 5) {
 		printUsage();
 		return -1;
 	}
@@ -65,6 +65,7 @@ int main(int argc, char* argv[])
 
 	std::string exportPrefix(argv[2]);
 	std::string exportType(argv[3]);
+	int startingNumber = std::stoi(argv[4]);
 
 #ifdef _DEBUG
 	std::cout << "Image Path: " << imagePath << std::endl;
@@ -148,7 +149,7 @@ int main(int argc, char* argv[])
 		else if (key == 'e' && !drawing) {//export all selections
 			for (int i = 0; i < rects.size(); i++)
 			{
-				imwrite(exportPrefix + "_" + std::to_string(i) + "." + exportType, baseImage(rects[i]));
+				imwrite(exportPrefix + std::to_string(startingNumber + i) + "." + exportType, baseImage(rects[i]));
 			}
 			std::cout << "Finished exporting " << rects.size() << " images" << std::endl;
 		}
