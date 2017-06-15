@@ -4,6 +4,7 @@
 #include "stdafx.h"
 
 #include <iostream>
+#include <wtypes.h>
 
 #include <opencv2\core.hpp>
 #include <opencv2\highgui.hpp>
@@ -19,6 +20,9 @@ bool drawing;
 const Scalar UNCONFIRMED_COLOR = Scalar(255, 0, 0);
 const Scalar CONFIRMED_COLOR = Scalar(0, 255, 0);
 const Scalar GUIDE_COLOR = Scalar(0, 0, 255);
+
+const float WINDOW_MARGIN_PERCENT = 0.05;
+const int SCROLL_STEP = 50;
 
 void printUsage() {
 	std::cout << "Usage: ImageSlicer <image path> <export filename prefix> <export file type> <starting number>" << std::endl;
@@ -54,6 +58,20 @@ void CallBackFunc(int event, int x, int y, int flags, void* userdata) {
 
 }
 
+// Get the horizontal and vertical screen sizes in pixel
+Size GetDesktopResolution()
+{
+	RECT desktop;
+	// Get a handle to the desktop window
+	const HWND hDesktop = GetDesktopWindow();
+	// Get the size of screen to the variable desktop
+	GetWindowRect(hDesktop, &desktop);
+	// The top left corner will have coordinates (0,0)
+	// and the bottom right corner will have coordinates
+	// (horizontal, vertical)
+	return Size(desktop.right, desktop.bottom);
+}
+
 int main(int argc, char* argv[])
 {
 	if (argc != 5) {
@@ -67,10 +85,17 @@ int main(int argc, char* argv[])
 	std::string exportType(argv[3]);
 	int startingNumber = std::stoi(argv[4]);
 
+	Size screenSize = GetDesktopResolution();
+	//Trim some margin space
+	screenSize.width *= 1.0 - WINDOW_MARGIN_PERCENT;
+	screenSize.height *= 1.0 - WINDOW_MARGIN_PERCENT;
+	Rect imageSection;
+
 #ifdef _DEBUG
 	std::cout << "Image Path: " << imagePath << std::endl;
 	std::cout << "Export Prefix: " << exportPrefix << std::endl;
 	std::cout << "Export Type: " << exportType << std::endl;
+	std::cout << "Screen Width: " << screenSize.width << " Height: " << screenSize.height << std::endl;
 #endif
 
 
@@ -83,11 +108,19 @@ int main(int argc, char* argv[])
 		return -2;
 	}
 
-	namedWindow("Image Slicer");
+	if ((baseImage.cols > screenSize.width) || (baseImage.rows > screenSize.height)) {
+#ifdef _DEBUG
+		std::cout << "Image larger than screen" << std::endl;
+#endif
+		imageSection = Rect(Point(0,0), screenSize);
+	}
+	else {
+		imageSection = Rect(Point(0,0), baseImage.size());
+	}
+
+	namedWindow("Image Slicer", WINDOW_AUTOSIZE);
 
 	setMouseCallback("Image Slicer", CallBackFunc, NULL);
-
-	imshow("Image Slicer", baseImage);
 
 	std::vector<Rect> rects;
 	bool run = true;
@@ -98,7 +131,7 @@ int main(int argc, char* argv[])
 	while (run) {
 		/***==-==-== Render Code ==-==-==***/
 		//Reset frame to base image
-		tempImage = baseImage.clone();
+		tempImage = baseImage.clone()(imageSection);
 		
 		//Render guides if necessary
 		if (guides) {
@@ -172,6 +205,38 @@ int main(int argc, char* argv[])
 			std::cout << "Toggling Guides" << std::endl;
 #endif
 			guides = !guides;
+		}
+		else if (key == '6') {//right
+#ifdef _DEBUG
+			std::cout << "Scrolling Right" << std::endl;
+#endif
+			if ((imageSection.x + imageSection.width + SCROLL_STEP) <= baseImage.cols) {
+				imageSection.x += SCROLL_STEP;
+			}
+		}
+		else if (key == '8') {//up
+#ifdef _DEBUG
+			std::cout << "Scrolling Up" << std::endl;
+#endif
+			if (imageSection.y > 0) {
+				imageSection.y -= SCROLL_STEP;
+			}
+		}
+		else if (key == '4') {//left
+#ifdef _DEBUG
+			std::cout << "Scrolling Left" << std::endl;
+#endif
+			if (imageSection.x > 0) {
+				imageSection.x -= SCROLL_STEP;
+			}
+		}
+		else if (key == '2') {//down
+#ifdef _DEBUG
+			std::cout << "Scrolling Down" << std::endl;
+#endif
+			if ((imageSection.y + imageSection.height + SCROLL_STEP) <= baseImage.rows) {
+				imageSection.y += SCROLL_STEP;
+			}
 		}
 	}
 
