@@ -30,6 +30,7 @@ const Scalar GUIDE_COLOR = Scalar(0, 0, 255);
 const float WINDOW_MARGIN_PERCENT = 0.05;
 const int SCROLL_STEP = 5;
 const float ZOOM_STEP_PERCENT = 0.05;
+const float THICKNESS_FACTOR = 0.001;
 
 int ZOOM_STEP_X;
 int ZOOM_STEP_Y;
@@ -221,10 +222,11 @@ int main(int argc, char* argv[])
 		//Render guides if necessary
 		if (guides) {
 #ifdef _DEBUG
-			std::cout << "Drawing Guides" << std::endl;
+			std::cout << "Drawing Guides " << tempImage.rows << std::endl;
 #endif
-			line(tempImage, Point(mouse.x, 0), Point(mouse.x, tempImage.cols), GUIDE_COLOR);
-			line(tempImage, Point(0, mouse.y), Point(tempImage.rows, mouse.y), GUIDE_COLOR);
+			int thickness = max(tempImage.rows, tempImage.cols) * THICKNESS_FACTOR;
+			line(tempImage, Point(mouse.x, 0), Point(mouse.x, tempImage.rows), GUIDE_COLOR, thickness);
+			line(tempImage, Point(0, mouse.y), Point(tempImage.cols, mouse.y), GUIDE_COLOR, thickness);
 		}
 
 		//Render an unconfirmed rectangle if necessary
@@ -232,9 +234,10 @@ int main(int argc, char* argv[])
 #ifdef _DEBUG
 			//std::cout << "Drawing unconfirmed rectangle" << std::endl;
 #endif
-			rectangle(tempImage, *unconfirmedRect, UNCONFIRMED_COLOR);
+			rectangle(tempImage, *unconfirmedRect, UNCONFIRMED_COLOR, max(tempImage.rows, tempImage.cols) * THICKNESS_FACTOR);
 		}
 
+		//resize if needed
 		if ((tempImage.cols != screenSize.width) || (tempImage.rows != screenSize.height)) {
 			x_zoom = (float)tempImage.cols / screenSize.width;
 			y_zoom = (float)tempImage.rows / screenSize.height;
@@ -255,12 +258,14 @@ int main(int argc, char* argv[])
 			unconfirmedRect->x += imageSection.x;
 			unconfirmedRect->y += imageSection.y;
 
-			rectangle(baseImage, *unconfirmedRect, CONFIRMED_COLOR);
+			int thickness = max(tempImage.rows, tempImage.cols) * THICKNESS_FACTOR;
+			rectangle(baseImage, *unconfirmedRect, CONFIRMED_COLOR, thickness);
+
 			//trim the green borders
-			unconfirmedRect->x += 1;
-			unconfirmedRect->y += 1;
-			unconfirmedRect->width -= 2;
-			unconfirmedRect->height -= 2;
+			unconfirmedRect->x += thickness;
+			unconfirmedRect->y += thickness;
+			unconfirmedRect->width -= 2 * thickness;
+			unconfirmedRect->height -= 2 * thickness;
 			rects.push_back(*unconfirmedRect);
 
 			unconfirmedRect = nullptr;
