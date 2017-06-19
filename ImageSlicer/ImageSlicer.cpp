@@ -12,6 +12,7 @@
 
 using namespace cv;
 
+Mat baseImage;
 Point p1;
 Rect* unconfirmedRect;
 Point mouse;
@@ -20,12 +21,21 @@ bool drawing;
 bool rClick = false;
 bool rMove = false;
 
+Rect imageSection;
+
 const Scalar UNCONFIRMED_COLOR = Scalar(255, 0, 0);
 const Scalar CONFIRMED_COLOR = Scalar(0, 255, 0);
 const Scalar GUIDE_COLOR = Scalar(0, 0, 255);
 
 const float WINDOW_MARGIN_PERCENT = 0.05;
-const int SCROLL_STEP = 1;
+const int SCROLL_STEP = 5;
+const float ZOOM_STEP_PERCENT = 0.05;
+
+int ZOOM_STEP_X;
+int ZOOM_STEP_Y;
+
+float x_zoom;
+float y_zoom;
 
 void printUsage() {
 	std::cout << "Usage: ImageSlicer <image path> <export filename prefix> <export file type> <starting number>" << std::endl;
@@ -38,16 +48,20 @@ void printControls() {
 }
 
 void CallBackFunc(int event, int x, int y, int flags, void* userdata) {
+	x *= x_zoom;
+	y *= y_zoom;
 	if (event == EVENT_LBUTTONDOWN) {
 #ifdef _DEBUG
-		std::cout << "Left button down" << std::endl;
+		std::cout << "Left button down (" << x << "," << y << ")" << std::endl;
+		std::cout << "Image Section: " << imageSection << std::endl;
 #endif
 		p1 = Point(x, y);
 		drawing = true;
 	}
 	else if (event == EVENT_LBUTTONUP) {
 #ifdef _DEBUG
-		std::cout << "Left button up" << std::endl;
+		std::cout << "Left button up (" << x << "," << y << ")" << std::endl;
+		std::cout << "Image Section: " << imageSection << std::endl;
 #endif
 		unconfirmedRect = new Rect(p1, Point(x, y));
 		drawing = false;
@@ -76,6 +90,47 @@ void CallBackFunc(int event, int x, int y, int flags, void* userdata) {
 		mouse = Point(x, y);
 		if (drawing) {
 			unconfirmedRect = new Rect(p1, mouse);
+		}
+	}
+	else if (event == EVENT_MOUSEWHEEL) {
+#ifdef _DEBUG
+		std::cout << "Mouse Wheel: " << flags << std::endl;
+#endif
+		if (flags > 0) {//zoom in
+#ifdef _DEBUG
+			std::cout << "Zooming in" << std::endl;
+#endif
+			imageSection.width *= 1.0 - ZOOM_STEP_PERCENT;
+			imageSection.height *= 1.0 - ZOOM_STEP_PERCENT;
+
+			if ((imageSection.width <= 0) || (imageSection.height <= 0)) {
+				imageSection.width = ZOOM_STEP_X;
+				imageSection.height = ZOOM_STEP_Y;
+			}
+		}
+		else if (flags < 0) {
+#ifdef _DEBUG
+			std::cout << "Zooming out" << std::endl;
+#endif
+			imageSection.width *= 1.0 + ZOOM_STEP_PERCENT;
+			imageSection.height *= 1.0 + ZOOM_STEP_PERCENT;
+
+			if (imageSection.width > baseImage.cols) {
+				imageSection.height = (baseImage.cols - 1) * imageSection.height / imageSection.width;
+				imageSection.width = baseImage.cols - 1;
+				imageSection.x = 0;
+			}
+			else if ((imageSection.x + imageSection.width) >= baseImage.cols) {
+				imageSection.x -= ((imageSection.x + imageSection.width) - baseImage.cols);
+			}
+			if (imageSection.height > baseImage.rows) {
+				imageSection.width = (baseImage.rows - 1) * imageSection.width / imageSection.height;
+				imageSection.height = baseImage.rows - 1;
+				imageSection.y = 0;
+			}
+			else if ((imageSection.y + imageSection.height) >= baseImage.rows) {
+				imageSection.y -= ((imageSection.y + imageSection.height) - baseImage.rows);
+			}
 		}
 	}
 }
@@ -111,7 +166,6 @@ int main(int argc, char* argv[])
 	//Trim some margin space
 	screenSize.width *= 1 - WINDOW_MARGIN_PERCENT;
 	screenSize.height *= 1 - WINDOW_MARGIN_PERCENT;
-	Rect imageSection;
 
 #ifdef _DEBUG
 	std::cout << "Image Path: " << imagePath << std::endl;
@@ -120,8 +174,7 @@ int main(int argc, char* argv[])
 	std::cout << "Screen Width: " << screenSize.width << " Height: " << screenSize.height << std::endl;
 #endif
 
-
-	Mat baseImage = imread(imagePath);
+	baseImage = imread(imagePath);
 	Mat tempImage = baseImage.clone();
 
 	if (baseImage.empty()) {
@@ -139,6 +192,16 @@ int main(int argc, char* argv[])
 	else {
 		imageSection = Rect(Point(0,0), baseImage.size());
 	}
+
+	ZOOM_STEP_X = screenSize.width * ZOOM_STEP_PERCENT;
+	ZOOM_STEP_Y = screenSize.height * ZOOM_STEP_PERCENT;
+	x_zoom = 1.0;
+	y_zoom = 1.0;
+
+#ifdef _DEBUG
+	std::cout << "Zoom Step X: " << ZOOM_STEP_X << std::endl;
+	std::cout << "Zoom Step Y: " << ZOOM_STEP_Y << std::endl;
+#endif
 
 	namedWindow("Image Slicer", WINDOW_AUTOSIZE);
 
@@ -167,9 +230,15 @@ int main(int argc, char* argv[])
 		//Render an unconfirmed rectangle if necessary
 		if (unconfirmedRect != nullptr) {
 #ifdef _DEBUG
-			std::cout << "Drawing unconfirmed rectangle" << std::endl;
+			//std::cout << "Drawing unconfirmed rectangle" << std::endl;
 #endif
 			rectangle(tempImage, *unconfirmedRect, UNCONFIRMED_COLOR);
+		}
+
+		if ((tempImage.cols != screenSize.width) || (tempImage.rows != screenSize.height)) {
+			x_zoom = (float)tempImage.cols / screenSize.width;
+			y_zoom = (float)tempImage.rows / screenSize.height;
+			resize(tempImage, tempImage, screenSize);
 		}
 
 		imshow("Image Slicer", tempImage);
