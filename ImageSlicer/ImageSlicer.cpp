@@ -13,6 +13,7 @@
 using namespace cv;
 
 Mat baseImage;
+Size screenSize;
 Point p1;
 Rect* unconfirmedRect;
 Point mouse;
@@ -117,19 +118,23 @@ void CallBackFunc(int event, int x, int y, int flags, void* userdata) {
 			imageSection.height *= 1.0 + ZOOM_STEP_PERCENT;
 
 			if (imageSection.width > baseImage.cols) {
-				imageSection.height = (baseImage.cols - 1) * imageSection.height / imageSection.width;
+				std::cout << "1" << std::endl;
+				imageSection.height = (baseImage.cols - 1) * screenSize.height / screenSize.width;
 				imageSection.width = baseImage.cols - 1;
 				imageSection.x = 0;
 			}
-			else if ((imageSection.x + imageSection.width) >= baseImage.cols) {
+			else if ((imageSection.x + imageSection.width) > baseImage.cols) {
+				std::cout << "2" << std::endl;
 				imageSection.x -= ((imageSection.x + imageSection.width) - baseImage.cols);
 			}
 			if (imageSection.height > baseImage.rows) {
-				imageSection.width = (baseImage.rows - 1) * imageSection.width / imageSection.height;
+				std::cout << "3" << std::endl;
+				imageSection.width = (baseImage.rows - 1) * screenSize.width / screenSize.height;
 				imageSection.height = baseImage.rows - 1;
 				imageSection.y = 0;
 			}
-			else if ((imageSection.y + imageSection.height) >= baseImage.rows) {
+			else if ((imageSection.y + imageSection.height) > baseImage.rows) {
+				std::cout << "4" << std::endl;
 				imageSection.y -= ((imageSection.y + imageSection.height) - baseImage.rows);
 			}
 		}
@@ -163,7 +168,7 @@ int main(int argc, char* argv[])
 	std::string exportType(argv[3]);
 	int startingNumber = std::stoi(argv[4]);
 
-	Size screenSize = GetDesktopResolution();
+	screenSize = GetDesktopResolution();
 	//Trim some margin space
 	screenSize.width *= 1 - WINDOW_MARGIN_PERCENT;
 	screenSize.height *= 1 - WINDOW_MARGIN_PERCENT;
