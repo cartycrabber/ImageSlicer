@@ -237,6 +237,20 @@ int main(int argc, char* argv[])
 			rectangle(tempImage, *unconfirmedRect, UNCONFIRMED_COLOR, max(tempImage.rows, tempImage.cols) * THICKNESS_FACTOR);
 		}
 
+		//Render confirmed rectangles if necessary
+		if (!rects.empty()) {
+#ifdef _DEBUG
+			//std::cout << "Drawing confirmed rectangles" << std::endl;
+#endif
+			for (int i = 0; i < rects.size(); i++) {
+				int thickness = max(tempImage.rows, tempImage.cols) * THICKNESS_FACTOR;
+				Rect r = rects[i];
+				r.x -= imageSection.x;
+				r.y -= imageSection.y;
+				rectangle(tempImage, r, CONFIRMED_COLOR, thickness);
+			}
+		}
+
 		//resize if needed
 		if ((tempImage.cols != screenSize.width) || (tempImage.rows != screenSize.height)) {
 			x_zoom = (float)tempImage.cols / screenSize.width;
@@ -258,14 +272,11 @@ int main(int argc, char* argv[])
 			unconfirmedRect->x += imageSection.x;
 			unconfirmedRect->y += imageSection.y;
 
-			int thickness = max(tempImage.rows, tempImage.cols) * THICKNESS_FACTOR;
-			rectangle(baseImage, *unconfirmedRect, CONFIRMED_COLOR, thickness);
-
 			//trim the green borders
-			unconfirmedRect->x += thickness;
+			/*unconfirmedRect->x += thickness;
 			unconfirmedRect->y += thickness;
 			unconfirmedRect->width -= 2 * thickness;
-			unconfirmedRect->height -= 2 * thickness;
+			unconfirmedRect->height -= 2 * thickness;*/
 			rects.push_back(*unconfirmedRect);
 
 			unconfirmedRect = nullptr;
