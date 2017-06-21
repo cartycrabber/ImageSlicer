@@ -4,7 +4,9 @@
 #include "stdafx.h"
 
 #include <iostream>
+#include <fstream>
 #include <wtypes.h>
+#include <ctime>
 
 #include <opencv2\core.hpp>
 #include <opencv2\highgui.hpp>
@@ -220,9 +222,16 @@ int main(int argc, char* argv[])
 	printControls();
 
 	while (run) {
+	#ifdef TIME_PROFILING
+		std::clock_t startRender = std::clock();
+	#endif
 		/***==-==-== Render Code ==-==-==***/
 		//Reset frame to base image
-		tempImage = baseImage.clone()(imageSection);
+		baseImage(imageSection).copyTo(tempImage);
+
+	#ifdef TIME_PROFILING
+		std::clock_t startGuides = std::clock();
+	#endif
 		
 		//Render guides if necessary
 		if (guides) {
@@ -256,6 +265,10 @@ int main(int argc, char* argv[])
 			}
 		}
 
+	#ifdef TIME_PROFILING
+		std::clock_t startResize = std::clock();
+	#endif
+
 		//resize if needed
 		if ((tempImage.cols != screenSize.width) || (tempImage.rows != screenSize.height)) {
 			x_zoom = (float)tempImage.cols / screenSize.width;
@@ -263,7 +276,15 @@ int main(int argc, char* argv[])
 			resize(tempImage, tempImage, screenSize);
 		}
 
+	#ifdef TIME_PROFILING
+		std::clock_t startShow = std::clock();
+	#endif
+
 		imshow("Image Slicer", tempImage);
+
+	#ifdef TIME_PROFILING
+		std::clock_t startInput = std::clock();
+	#endif
 
 		/***==-==-== Input Code ==-==-==***/
 		//Get input
@@ -293,9 +314,12 @@ int main(int argc, char* argv[])
 			unconfirmedRect = nullptr;
 		}
 		else if (key == 'e' && !drawing) {//export all selections
+			std::ofstream file(exportPrefix + "_desc.txt");
 			for (int i = 0; i < rects.size(); i++)
 			{
-				imwrite(exportPrefix + std::to_string(startingNumber + i) + "." + exportType, baseImage(rects[i]));
+				Rect r = rects[i];
+				imwrite(exportPrefix + std::to_string(startingNumber + i) + "." + exportType, baseImage(r));
+				file << imagePath << " " << rects.size() << " " << r.x << " " << r.y << r.width << " " << r.height;
 			}
 			std::cout << "Finished exporting " << rects.size() << " images" << std::endl;
 		}
@@ -371,6 +395,13 @@ int main(int argc, char* argv[])
 				imageSection.y -= deltaY;
 			}
 		}
+
+	#ifdef TIME_PROFILING
+		std::clock_t end = std::clock();
+		double divisor = (double)(CLOCKS_PER_SEC / 1000);
+		std::cout << "Render Time: " << (startInput - startRender) / divisor << " Copy Time: " << (startGuides - startRender) / divisor << " Resize Time: " << (startShow - startResize) / divisor
+			<< " Show Time: " << (startInput - startShow) / divisor<< " Input Time: " << (end - startInput) / divisor << std::endl;
+	#endif
 	}
 
 	destroyAllWindows();
