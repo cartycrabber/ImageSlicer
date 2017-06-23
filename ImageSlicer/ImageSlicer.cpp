@@ -12,6 +12,8 @@
 #include <opencv2\highgui.hpp>
 #include <opencv2\imgproc.hpp>
 
+//#define TIME_PROFILING
+
 using namespace cv;
 
 Mat baseImage;
@@ -23,6 +25,8 @@ Point mouseLast;
 bool drawing;
 bool rClick = false;
 bool rMove = false;
+bool lockRect = false;
+Size lockRectSize;
 
 Rect imageSection;
 
@@ -55,35 +59,31 @@ void CallBackFunc(int event, int x, int y, int flags, void* userdata) {
 	x *= x_zoom;
 	y *= y_zoom;
 	if (event == EVENT_LBUTTONDOWN) {
-#ifdef _DEBUG
+	#ifdef _DEBUG
 		std::cout << "Left button down (" << x << "," << y << ")" << std::endl;
 		std::cout << "Image Section: " << imageSection << std::endl;
-#endif
+	#endif
 		p1 = Point(x, y);
 		drawing = true;
-	}
-	else if (event == EVENT_LBUTTONUP) {
-#ifdef _DEBUG
+	} else if (event == EVENT_LBUTTONUP) {
+	#ifdef _DEBUG
 		std::cout << "Left button up (" << x << "," << y << ")" << std::endl;
 		std::cout << "Image Section: " << imageSection << std::endl;
-#endif
+	#endif
 		unconfirmedRect = new Rect(p1, Point(x, y));
 		drawing = false;
-	}
-	else if (event == EVENT_RBUTTONDOWN) {
-#ifdef _DEBUG
+	} else if (event == EVENT_RBUTTONDOWN) {
+	#ifdef _DEBUG
 		std::cout << "Right button down" << std::endl;
-#endif
+	#endif
 		rClick = true;
-	}
-	else if (event == EVENT_RBUTTONUP) {
-#ifdef _DEBUG
+	} else if (event == EVENT_RBUTTONUP) {
+	#ifdef _DEBUG
 		std::cout << "Right button up" << std::endl;
-#endif
+	#endif
 		rClick = false;
 		rMove = false;
-	}
-	else if (event == EVENT_MOUSEMOVE) {
+	} else if (event == EVENT_MOUSEMOVE) {
 		if (rClick) {
 			if (!rMove) {
 				mouseLast = mouse;
@@ -95,15 +95,14 @@ void CallBackFunc(int event, int x, int y, int flags, void* userdata) {
 		if (drawing) {
 			unconfirmedRect = new Rect(p1, mouse);
 		}
-	}
-	else if (event == EVENT_MOUSEWHEEL) {
-#ifdef _DEBUG
+	} else if (event == EVENT_MOUSEWHEEL) {
+	#ifdef _DEBUG
 		std::cout << "Mouse Wheel: " << flags << std::endl;
-#endif
+	#endif
 		if (flags > 0) {//zoom in
-#ifdef _DEBUG
+		#ifdef _DEBUG
 			std::cout << "Zooming in" << std::endl;
-#endif
+		#endif
 			imageSection.width *= 1.0 - ZOOM_STEP_PERCENT;
 			imageSection.height *= 1.0 - ZOOM_STEP_PERCENT;
 
@@ -111,32 +110,25 @@ void CallBackFunc(int event, int x, int y, int flags, void* userdata) {
 				imageSection.width = ZOOM_STEP_X;
 				imageSection.height = ZOOM_STEP_Y;
 			}
-		}
-		else if (flags < 0) {
-#ifdef _DEBUG
+		} else if (flags < 0) {
+		#ifdef _DEBUG
 			std::cout << "Zooming out" << std::endl;
-#endif
+		#endif
 			imageSection.width *= 1.0 + ZOOM_STEP_PERCENT;
 			imageSection.height *= 1.0 + ZOOM_STEP_PERCENT;
 
 			if (imageSection.width > baseImage.cols) {
-				std::cout << "1" << std::endl;
 				imageSection.height = (baseImage.cols - 1) * screenSize.height / screenSize.width;
 				imageSection.width = baseImage.cols - 1;
 				imageSection.x = 0;
-			}
-			else if ((imageSection.x + imageSection.width) > baseImage.cols) {
-				std::cout << "2" << std::endl;
+			} else if ((imageSection.x + imageSection.width) > baseImage.cols) {
 				imageSection.x -= ((imageSection.x + imageSection.width) - baseImage.cols);
 			}
 			if (imageSection.height > baseImage.rows) {
-				std::cout << "3" << std::endl;
 				imageSection.width = (baseImage.rows - 1) * screenSize.width / screenSize.height;
 				imageSection.height = baseImage.rows - 1;
 				imageSection.y = 0;
-			}
-			else if ((imageSection.y + imageSection.height) > baseImage.rows) {
-				std::cout << "4" << std::endl;
+			} else if ((imageSection.y + imageSection.height) > baseImage.rows) {
 				imageSection.y -= ((imageSection.y + imageSection.height) - baseImage.rows);
 			}
 		}
@@ -144,8 +136,7 @@ void CallBackFunc(int event, int x, int y, int flags, void* userdata) {
 }
 
 // Get the horizontal and vertical screen sizes in pixel
-Size GetDesktopResolution()
-{
+Size GetDesktopResolution() {
 	RECT desktop;
 	// Get a handle to the desktop window
 	const HWND hDesktop = GetDesktopWindow();
@@ -157,8 +148,10 @@ Size GetDesktopResolution()
 	return Size(desktop.right, desktop.bottom);
 }
 
-int main(int argc, char* argv[])
-{
+int main(int argc, char* argv[]) {
+#ifdef TIME_PROFILING
+	std::clock_t startLoad = std::clock();
+#endif
 	if (argc != 5) {
 		printUsage();
 		return -1;
@@ -182,8 +175,16 @@ int main(int argc, char* argv[])
 	std::cout << "Screen Width: " << screenSize.width << " Height: " << screenSize.height << std::endl;
 #endif
 
+#ifdef TIME_PROFILING
+	std::clock_t startRead = std::clock();
+#endif
+
 	baseImage = imread(imagePath);
-	Mat tempImage = baseImage.clone();
+	Mat tempImage;
+
+#ifdef TIME_PROFILING
+	std::clock_t endRead = std::clock();
+#endif
 
 	if (baseImage.empty()) {
 		std::cout << "Error loading image: " << imagePath << std::endl;
@@ -192,13 +193,12 @@ int main(int argc, char* argv[])
 	}
 
 	if ((baseImage.cols > screenSize.width) || (baseImage.rows > screenSize.height)) {
-#ifdef _DEBUG
+	#ifdef _DEBUG
 		std::cout << "Image larger than screen" << std::endl;
-#endif
-		imageSection = Rect(Point(0,0), screenSize);
-	}
-	else {
-		imageSection = Rect(Point(0,0), baseImage.size());
+	#endif
+		imageSection = Rect(Point(0, 0), screenSize);
+	} else {
+		imageSection = Rect(Point(0, 0), baseImage.size());
 	}
 
 	ZOOM_STEP_X = screenSize.width * ZOOM_STEP_PERCENT;
@@ -219,7 +219,16 @@ int main(int argc, char* argv[])
 	bool run = true;
 	bool guides = false;
 
+	//default lock rect size
+	lockRectSize = Size(64, 64);
+
 	printControls();
+
+#ifdef TIME_PROFILING
+	std::clock_t end = std::clock();
+	double divisor = (double)(CLOCKS_PER_SEC / 1000);
+	std::cout << "Load Time: " << (end - startLoad) / divisor << " Read Time: " << (endRead - startRead) / divisor << std::endl;
+#endif
 
 	while (run) {
 	#ifdef TIME_PROFILING
@@ -232,12 +241,20 @@ int main(int argc, char* argv[])
 	#ifdef TIME_PROFILING
 		std::clock_t startGuides = std::clock();
 	#endif
-		
+
+		//Check if we're doing the lock rectangle thing
+		if (lockRect) {
+		#ifdef _DEBUG
+			std::cout << "Drawing Locked Rect " << std::endl;
+		#endif
+			unconfirmedRect = new Rect((tempImage.cols / 2) - (lockRectSize.width / 2), (tempImage.rows / 2) - (lockRectSize.height / 2), lockRectSize.width, lockRectSize.height);
+		}
+
 		//Render guides if necessary
 		if (guides) {
-#ifdef _DEBUG
-			std::cout << "Drawing Guides " << tempImage.rows << std::endl;
-#endif
+		#ifdef _DEBUG
+			std::cout << "Drawing Guides " << std::endl;
+		#endif
 			int thickness = max(tempImage.rows, tempImage.cols) * THICKNESS_FACTOR;
 			line(tempImage, Point(mouse.x, 0), Point(mouse.x, tempImage.rows), GUIDE_COLOR, thickness);
 			line(tempImage, Point(0, mouse.y), Point(tempImage.cols, mouse.y), GUIDE_COLOR, thickness);
@@ -245,17 +262,17 @@ int main(int argc, char* argv[])
 
 		//Render an unconfirmed rectangle if necessary
 		if (unconfirmedRect != nullptr) {
-#ifdef _DEBUG
+		#ifdef _DEBUG
 			//std::cout << "Drawing unconfirmed rectangle" << std::endl;
-#endif
+		#endif
 			rectangle(tempImage, *unconfirmedRect, UNCONFIRMED_COLOR, max(tempImage.rows, tempImage.cols) * THICKNESS_FACTOR);
 		}
 
 		//Render confirmed rectangles if necessary
 		if (!rects.empty()) {
-#ifdef _DEBUG
+		#ifdef _DEBUG
 			//std::cout << "Drawing confirmed rectangles" << std::endl;
-#endif
+		#endif
 			for (int i = 0; i < rects.size(); i++) {
 				int thickness = max(tempImage.rows, tempImage.cols) * THICKNESS_FACTOR;
 				Rect r = rects[i];
@@ -291,9 +308,9 @@ int main(int argc, char* argv[])
 		int key = waitKey(1);
 		//Handle Input
 		if ((key == 'c') && !drawing && (unconfirmedRect != nullptr)) {//confirm rect
-#ifdef _DEBUG
+		#ifdef _DEBUG
 			std::cout << "Confirming rectangle" << std::endl;
-#endif
+		#endif
 			//Add the viewing offset to the rectangle
 			unconfirmedRect->x += imageSection.x;
 			unconfirmedRect->y += imageSection.y;
@@ -306,84 +323,100 @@ int main(int argc, char* argv[])
 			rects.push_back(*unconfirmedRect);
 
 			unconfirmedRect = nullptr;
-		}
-		else if (key == 'd' && !drawing && (unconfirmedRect != nullptr)) {//delete rect
-#ifdef _DEBUG
+		} else if (key == 'd' && !drawing && (unconfirmedRect != nullptr)) {//delete rect
+		#ifdef _DEBUG
 			std::cout << "Deleting rectangle" << std::endl;
-#endif
+		#endif
 			unconfirmedRect = nullptr;
-		}
-		else if (key == 'e' && !drawing) {//export all selections
+		} else if (key == 'e' && !drawing) {//export all selections
 			std::ofstream file(exportPrefix + "_desc.txt");
-			for (int i = 0; i < rects.size(); i++)
-			{
+			for (int i = 0; i < rects.size(); i++) {
 				Rect r = rects[i];
 				imwrite(exportPrefix + std::to_string(startingNumber + i) + "." + exportType, baseImage(r));
 				file << imagePath << " " << rects.size() << " " << r.x << " " << r.y << r.width << " " << r.height;
 			}
 			std::cout << "Finished exporting " << rects.size() << " images" << std::endl;
-		}
-		else if (key == 'q') {//quit
-#ifdef _DEBUG
+		} else if (key == 'q') {//quit
+		#ifdef _DEBUG
 			std::cout << "Quitting" << std::endl;
-#endif
+		#endif
 			run = false;
-		}
-		else if (key == 'r') {//reset image
-#ifdef _DEBUG
+		} else if (key == 'r') {//reset image
+		#ifdef _DEBUG
 			std::cout << "Resetting Image" << std::endl;
-#endif
+		#endif
 			baseImage = imread(imagePath);
 			unconfirmedRect = nullptr;
 			rects.clear();
-		}
-		else if (key == 'g') {//guides
-#ifdef _DEBUG
+		} else if (key == 'g') {//guides
+		#ifdef _DEBUG
 			std::cout << "Toggling Guides" << std::endl;
-#endif
+		#endif
 			guides = !guides;
-		}
-		else if (key == '6') {//right
-#ifdef _DEBUG
+		} else if (key == '6') {//right
+		#ifdef _DEBUG
 			std::cout << "Scrolling Right" << std::endl;
-#endif
+		#endif
 			if ((imageSection.x + imageSection.width + SCROLL_STEP) <= baseImage.cols) {
 				imageSection.x += SCROLL_STEP;
 			}
-		}
-		else if (key == '8') {//up
-#ifdef _DEBUG
+		} else if (key == '8') {//up
+		#ifdef _DEBUG
 			std::cout << "Scrolling Up" << std::endl;
-#endif
+		#endif
 			if (imageSection.y > 0) {
 				imageSection.y -= SCROLL_STEP;
 			}
-		}
-		else if (key == '4') {//left
-#ifdef _DEBUG
+		} else if (key == '4') {//left
+		#ifdef _DEBUG
 			std::cout << "Scrolling Left" << std::endl;
-#endif
+		#endif
 			if (imageSection.x > 0) {
 				imageSection.x -= SCROLL_STEP;
 			}
-		}
-		else if (key == '2') {//down
-#ifdef _DEBUG
+		} else if (key == '2') {//down
+		#ifdef _DEBUG
 			std::cout << "Scrolling Down" << std::endl;
-#endif
+		#endif
 			if ((imageSection.y + imageSection.height + SCROLL_STEP) <= baseImage.rows) {
 				imageSection.y += SCROLL_STEP;
 			}
+		} else if (key == 'l') {//toggle lock rectangle size
+		#ifdef _DEBUG
+			std::cout << "Toggling rect lock" << std::endl;
+		#endif
+			lockRect = !lockRect;
 		}
+		else if ((key == '+') && lockRect) {
+		#ifdef _DEBUG
+			std::cout << "Increasing locked rect size" << std::endl;
+		#endif
+			lockRectSize.width += max((int)(lockRectSize.width * ZOOM_STEP_PERCENT), 1);
+			lockRectSize.height += max((int)(lockRectSize.height * ZOOM_STEP_PERCENT), 1);
+			std::cout << "Rect Size (width x height): " << lockRectSize.width << " x " << lockRectSize.height << std::endl;
+		}
+		else if ((key == '-') && lockRect) {
+		#ifdef _DEBUG
+			std::cout << "Decreasing locked rect size" << std::endl;
+		#endif
+			lockRectSize.width -= max((int)(lockRectSize.width * ZOOM_STEP_PERCENT), 1);
+			lockRectSize.height -= max((int)(lockRectSize.height * ZOOM_STEP_PERCENT), 1);
+			std::cout << "Rect Size (width x height): " << lockRectSize.width << " x " << lockRectSize.height << std::endl;
+		}
+	#ifdef _DEBUG
+		else if (key != -1) {
+			std::cout << "Unhandled button: " << key << std::endl;
+		}
+	#endif
 		if (rClick && rMove) {
-#ifdef _DEBUG
+		#ifdef _DEBUG
 			std::cout << "Right click and drag" << std::endl;
-#endif
+		#endif
 			int deltaX = mouse.x - mouseLast.x;
 			int deltaY = mouse.y - mouseLast.y;
-#ifdef _DEBUG
+		#ifdef _DEBUG
 			std::cout << "Mouse Delta: " << mouse - mouseLast << std::endl;
-#endif
+		#endif
 			rMove = false;
 			if (((imageSection.x + imageSection.width - deltaX) <= baseImage.cols)
 				&& (imageSection.x - deltaX) >= 0) {
@@ -400,12 +433,12 @@ int main(int argc, char* argv[])
 		std::clock_t end = std::clock();
 		double divisor = (double)(CLOCKS_PER_SEC / 1000);
 		std::cout << "Render Time: " << (startInput - startRender) / divisor << " Copy Time: " << (startGuides - startRender) / divisor << " Resize Time: " << (startShow - startResize) / divisor
-			<< " Show Time: " << (startInput - startShow) / divisor<< " Input Time: " << (end - startInput) / divisor << std::endl;
+			<< " Show Time: " << (startInput - startShow) / divisor << " Input Time: " << (end - startInput) / divisor << std::endl;
 	#endif
 	}
 
 	destroyAllWindows();
 
-    return 0;
+	return 0;
 }
 
